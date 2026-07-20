@@ -640,10 +640,24 @@ async function triggerInstructionCard(cmd, passedTransObj, cardEl) {
 }
 
 // Trigger Patient Touch Response Click
-function triggerPatientTouchResponse(item, transObj) {
-    speakText(item.tw, 'zh-TW');
-    appendDialogueMsg('patient', '👤 病患觸控回覆', transObj.target, item.tw);
-    showToast(`病患回應: ${transObj.target} (${item.tw})`);
+function triggerPatientTouchResponse(item, passedTransObj) {
+    const transObj = (item.translations && item.translations[currentLanguage]) || 
+                     (item.translations && item.translations['english']) || 
+                     passedTransObj;
+
+    const doctorChineseText = transObj.twText || item.tw;
+    const patientNativeText = transObj.target;
+
+    // 1. Speak Chinese Translation out loud for Doctor
+    speakText(doctorChineseText, 'zh-TW');
+
+    // 2. Append to Dialogue Stream (Patient Native -> Doctor Chinese)
+    appendDialogueMsg('patient', '👤 病患觸控回覆', patientNativeText, doctorChineseText);
+
+    // 3. Show Fullscreen Patient Visualizer Overlay
+    showPatientOverlay(doctorChineseText, patientNativeText, '', item.icon, 'general');
+
+    showToast(`病患回應: ${patientNativeText} (${doctorChineseText})`);
 }
 
 // Fullscreen Patient Overlay Logic
