@@ -273,13 +273,16 @@
     <audio id="dummyUnlockPlayer" preload="auto" style="display: none;"></audio>
 
     <!-- Script imports -->
-    <script src="app.js"></script>
+    <script src="app.js?v=2.0_hd_female_voice"></script>
     <script>
-        // Register PWA service worker for offline loading
+        // Register PWA service worker with auto-update
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js')
-                    .then(reg => console.log('Service Worker registered successfully!', reg))
+                    .then(reg => {
+                        console.log('Service Worker registered successfully!', reg);
+                        reg.update();
+                    })
                     .catch(err => console.error('Service Worker registration failed:', err));
             });
         }
