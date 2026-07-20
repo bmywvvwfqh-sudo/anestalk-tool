@@ -765,6 +765,8 @@ function getStrictFemaleVoice(langCode) {
     return candidatePool[0];
 }
 
+let speakTimeout = null;
+
 function speakText(text, langCode) {
     if (!text || !text.trim()) return;
     if (!synth) synth = window.speechSynthesis;
@@ -772,32 +774,61 @@ function speakText(text, langCode) {
 
     const cleanText = text.trim();
 
-    // Cancel any ongoing speech synchronously
-    synth.cancel();
-    if (synth.paused) {
-        synth.resume();
-    }
+    if (speakTimeout) clearTimeout(speakTimeout);
+    try {
+        synth.cancel();
+        if (synth.paused) synth.resume();
+    } catch(e) {}
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = langCode || 'en-US';
-    utterance.rate = 0.92; // Clear articulation speed
-    utterance.pitch = 1.05; // Gentle female pitch boost
+    utterance.rate = 0.92;
+    utterance.pitch = 1.1; // Gentle feminine pitch boost
 
-    // Force Strict Female Voice Selection
     const matchedVoice = getStrictFemaleVoice(langCode);
+    let voiceAssigned = false;
+
     if (matchedVoice) {
         utterance.voice = matchedVoice;
+        voiceAssigned = true;
         showToast(`🔊 正在播報女聲: ${matchedVoice.name}`);
         console.log(`🔊 [AnesTalk TTS] Female Voice assigned (${langCode}): ${matchedVoice.name}`);
     } else {
-        showToast(`🔊 正在播報語音 (${langCode.toUpperCase()})`);
+        showToast(`🔊 正在播報語音 (${(langCode||'').toUpperCase()})`);
     }
 
+    let started = false;
+    utterance.onstart = () => {
+        started = true;
+        console.log('🔊 Speech started successfully!');
+    };
+
     utterance.onerror = (e) => {
-        console.error('SpeechSynthesis error:', e);
+        console.error('Speech error:', e);
+        if (voiceAssigned) {
+            console.warn('Retrying speech fallback without explicit voice object...');
+            const fallbackUtterance = new SpeechSynthesisUtterance(cleanText);
+            fallbackUtterance.lang = langCode || 'en-US';
+            fallbackUtterance.rate = 0.92;
+            fallbackUtterance.pitch = 1.18; // Feminine pitch modulation fallback
+            synth.speak(fallbackUtterance);
+        }
     };
 
     synth.speak(utterance);
+
+    // Safety check: If speech did not start after 400ms (e.g. uninstalled OS voice reference stall), retry with system fallback
+    speakTimeout = setTimeout(() => {
+        if (!started && voiceAssigned) {
+            console.warn('Speech did not start within 400ms. Retrying fallback...');
+            try { synth.cancel(); } catch(e) {}
+            const fallbackUtterance = new SpeechSynthesisUtterance(cleanText);
+            fallbackUtterance.lang = langCode || 'en-US';
+            fallbackUtterance.rate = 0.92;
+            fallbackUtterance.pitch = 1.18; // Feminine pitch modulation fallback
+            synth.speak(fallbackUtterance);
+        }
+    }, 400);
 }
 
 // Append Dialogue Message Bubble
