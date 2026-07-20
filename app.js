@@ -697,39 +697,69 @@ function hidePatientOverlay() {
     if (overlay) overlay.classList.remove('active');
 }
 
-// Web SpeechSynthesis Engine with High-Quality Female Voice Selection & Speech Clarity
-function getBestFemaleVoice(langCode) {
-    if (!availableVoices || availableVoices.length === 0) {
-        availableVoices = synth.getVoices();
-    }
-    if (!availableVoices || availableVoices.length === 0) return null;
+// Strict Female Voice Selection & Pitch Enforcement Engine (Handles Hyphenated Names & Anti-Male Exclusion)
+const KNOWN_FEMALE_VOICES = {
+    zh: ['mei-jia', 'ting-ting', 'yating', 'hsiaochen', 'meijia', 'xiaoxiao', 'hanhan', 'sin-ji', 'google 國語', 'microsoft hsiaochen', 'microsoft xiaoxiao', 'hiuga', 'hwayu'],
+    ko: ['yuna', 'sun-hi', 'sunhi', 'heami', 'google 한국어', 'microsoft sunhi', 'microsoft heami'],
+    en: ['samantha', 'jenny', 'ava', 'karen', 'victoria', 'aria', 'zira', 'google us english', 'google uk english female', 'microsoft jenny', 'microsoft aria'],
+    ja: ['kyoko', 'nanami', 'mizuki', 'haruka', 'google 日本語', 'microsoft nanami', 'microsoft haruka'],
+    vi: ['linh', 'hoaimy', 'hoai-my', 'google tiếng việt', 'microsoft hoaimy'],
+    th: ['kanya', 'premwadee', 'google ภาษาไทย', 'microsoft premwadee'],
+    id: ['damayanti', 'gadis', 'google bahasa indonesia', 'microsoft gadis'],
+    tl: ['rosa', 'blessica', 'google filipino', 'microsoft blessica'],
+    fil: ['rosa', 'blessica', 'google filipino', 'microsoft blessica']
+};
+
+const EXPLICIT_MALE_KEYWORDS = [
+    'male', 'man', 'boy', 'david', 'mark', 'george', 'james', 'paul', 'richard', 
+    'otoya', 'keita', 'shinji', 'hattori', 'hwan', 'min', 'giang', 'alva', 'stefan', 
+    'daniel', 'ichiro', 'taras', 'alex', 'fred', 'bruce', 'ralph'
+];
+
+function getStrictFemaleVoice(langCode) {
+    if (!synth) return null;
+    const allVoices = synth.getVoices();
+    if (!allVoices || allVoices.length === 0) return null;
 
     const prefix = langCode.toLowerCase().substring(0, 2);
-    const matchedVoices = availableVoices.filter(v => 
+
+    // 1. Filter voices for target language
+    const langVoices = allVoices.filter(v => 
         v.lang.toLowerCase() === langCode.toLowerCase() ||
         v.lang.toLowerCase().replace('_', '-').startsWith(prefix)
     );
 
-    if (matchedVoices.length === 0) return null;
+    if (langVoices.length === 0) return null;
 
-    // High Quality Female & Neural Voice Keywords
-    const femaleKeywords = [
-        'female', 'woman', 'girl', 'neural', 'natural', 'google', 'premium', 'enhanced', 'online',
-        'yuna', 'sunhi', 'heami', 'samantha', 'jenny', 'ava', 'karen', 'victoria', 'aria',
-        'kyoko', 'nanami', 'linh', 'hoaimy', 'kanya', 'premwadee', 'damayanti', 'gadis',
-        'rosa', 'blessica', 'tingting', 'hsiaochen', 'meijia', 'xiaoxiao'
-    ];
-
-    // Priority 1: High Quality / Neural Female Voice
-    const bestFemale = matchedVoices.find(v => {
-        const name = v.name.toLowerCase();
-        return femaleKeywords.some(kw => name.includes(kw));
+    // 2. Reject explicit male voices first
+    const nonMaleVoices = langVoices.filter(v => {
+        const n = v.name.toLowerCase();
+        if (n.includes('female')) return true;
+        return !EXPLICIT_MALE_KEYWORDS.some(m => n.includes(m));
     });
 
-    if (bestFemale) return bestFemale;
+    const candidatePool = nonMaleVoices.length > 0 ? nonMaleVoices : langVoices;
 
-    // Fallback: Return first matching language voice
-    return matchedVoices[0];
+    // 3. Match against known female voice names (stripping punctuation for 100% match)
+    const preferredNames = KNOWN_FEMALE_VOICES[prefix] || [];
+    for (let pName of preferredNames) {
+        const targetP = pName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const match = candidatePool.find(v => {
+            const n = v.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return n.includes(targetP);
+        });
+        if (match) return match;
+    }
+
+    // 4. Match general female / neural keywords
+    const femaleMatch = candidatePool.find(v => {
+        const n = v.name.toLowerCase();
+        return n.includes('female') || n.includes('woman') || n.includes('girl') || n.includes('neural') || n.includes('natural');
+    });
+
+    if (femaleMatch) return femaleMatch;
+
+    return candidatePool[0];
 }
 
 function speakText(text, langCode) {
@@ -743,16 +773,23 @@ function speakText(text, langCode) {
     }
     synth.cancel();
 
+    // Dynamically retrieve latest system voices
+    availableVoices = synth.getVoices();
+
     setTimeout(() => {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = langCode || 'en-US';
-        utterance.rate = 0.88; // Slightly relaxed speed for ultra-crisp medical articulation
-        utterance.pitch = 1.05; // Natural female tone pitch
+        utterance.rate = 0.95; // Natural clear speed (eliminates muddled audio)
+        utterance.pitch = 1.0; // Standard natural pitch (eliminates distortion artifacts)
 
-        // High Quality Female Voice Matching
-        const matchedVoice = getBestFemaleVoice(langCode);
+        // Force Strict Female Voice Matching
+        const matchedVoice = getStrictFemaleVoice(langCode);
         if (matchedVoice) {
             utterance.voice = matchedVoice;
+            showToast(`🔊 語音女聲: ${matchedVoice.name}`);
+            console.log(`🔊 [AnesTalk TTS] Using Female Voice (${langCode}): ${matchedVoice.name}`);
+        } else {
+            console.warn(`⚠️ [AnesTalk TTS] No matched female voice for ${langCode}`);
         }
 
         utterance.onerror = (e) => {
