@@ -657,16 +657,18 @@ function triggerPatientTouchResponse(item, passedTransObj) {
                      (item.translations && item.translations['english']) || 
                      passedTransObj;
 
-    const doctorChineseText = transObj.twText || item.tw;
+    // Always use item.tw (固定繁體中文) for speech - never use transObj.twText
+    // because twText in English/Thai/Vietnamese entries contains non-Chinese text
+    const doctorChineseText = item.tw;
     const patientNativeText = transObj.target;
 
-    // 1. Speak Chinese Translation out loud for Doctor
+    // Speak in clear Chinese (zh-TW) female voice for medical staff
     speakText(doctorChineseText, 'zh-TW');
 
-    // 2. Append to Dialogue Stream (Patient Native -> Doctor Chinese)
+    // Append to Dialogue Stream (Patient Native -> Doctor Chinese)
     appendDialogueMsg('patient', '👤 病患觸控回覆', patientNativeText, doctorChineseText);
 
-    // 3. Show Fullscreen Patient Visualizer Overlay
+    // Show Fullscreen Patient Visualizer Overlay
     showPatientOverlay(doctorChineseText, patientNativeText, '', item.icon, 'general');
 
     showToast(`病患回應: ${patientNativeText} (${doctorChineseText})`);
