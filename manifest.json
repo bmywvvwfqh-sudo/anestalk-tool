@@ -1,0 +1,16 @@
+{
+  "name": "AnesTalk - 麻醉科多語言 AI 語音翻譯助手",
+  "short_name": "AnesTalk",
+  "description": "專為麻醉科設計的多語言雙向語音輔助溝通平台，支援離線預設語音與雙向互動翻譯。",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

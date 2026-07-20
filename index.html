@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnesTalk - 麻醉科多國語音輔助與雙向翻譯系統</title>
+    
+    <!-- Meta tags for PWA -->
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="description" content="專為麻醉科設計的多國語音輔助與雙向翻譯溝通平台，支援韓文、英文、日文與東南亞語系，包含離線使用功能。">
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Ambient background graphics -->
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <!-- Offline Notification Banner -->
+    <div id="offlineBanner" class="offline-banner">
+        <i class="fa-solid fa-wifi-slash"></i> 您目前處於離線狀態。自訂句子的線上翻譯暫時無法使用，但「麻醉常用指令語音」仍可離線播放！
+    </div>
+
+    <!-- Header Section -->
+    <header>
+        <div class="logo-section">
+            <div style="font-size: 2rem; color: var(--accent-cyan);"><i class="fa-solid fa-syringe"></i></div>
+            <div>
+                <h1>AnesTalk</h1>
+                <div class="logo-subtitle">麻醉科多國語音輔助與雙向對話系統</div>
+            </div>
+        </div>
+
+        <!-- Target Language Selector Buttons -->
+        <div class="lang-selector">
+            <button class="lang-btn active" data-lang="korean">
+                <span>🇰🇷</span> 한국어
+            </button>
+            <button class="lang-btn" data-lang="english">
+                <span>🇺🇸</span> English
+            </button>
+            <button class="lang-btn" data-lang="japanese">
+                <span>🇯🇵</span> 日本語
+            </button>
+            <button class="lang-btn" data-lang="vietnamese">
+                <span>🇻🇳</span> Tiếng Việt
+            </button>
+            <button class="lang-btn" data-lang="thai">
+                <span>🇹🇭</span> ไทย
+            </button>
+            <button class="lang-btn" data-lang="indonesian">
+                <span>🇮🇩</span> Indonesia
+            </button>
+            <button class="lang-btn" data-lang="filipino">
+                <span>🇵🇭</span> Filipino
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main>
+        
+        <!-- Category Tab Buttons -->
+        <div class="tabs-container">
+            <button class="tab-btn active" data-tab="preop">
+                <i class="fa-solid fa-clipboard-check"></i> 術前評估備診
+            </button>
+            <button class="tab-btn" data-tab="intraop">
+                <i class="fa-solid fa-notes-medical"></i> 擺位與誘導指令
+            </button>
+            <button class="tab-btn" data-tab="pacu">
+                <i class="fa-solid fa-bed-pulse"></i> 恢復室 VAS 痛感
+            </button>
+            <button class="tab-btn special-tab" data-tab="interactive">
+                <i class="fa-solid fa-comments-dollar"></i> 🗣️ 雙向互動翻譯專區
+            </button>
+        </div>
+
+        <!-- Pre-Op Instructions Section -->
+        <section id="preopSection" class="instruction-section active">
+            <div id="preopGrid" class="grid-layout">
+                <!-- Injected dynamically via app.js -->
+            </div>
+        </section>
+
+        <!-- Intra-Op Instructions Section -->
+        <section id="intraopSection" class="instruction-section">
+            <div id="intraopGrid" class="grid-layout">
+                <!-- Injected dynamically via app.js -->
+            </div>
+        </section>
+
+        <!-- PACU Recovery Section -->
+        <section id="pacuSection" class="instruction-section">
+            <div id="pacuGrid" class="grid-layout">
+                <!-- Injected dynamically via app.js -->
+            </div>
+        </section>
+
+        <!-- NEW: Two-Way Interactive Dialogue Zone Section -->
+        <section id="interactiveSection" class="instruction-section">
+            <div class="interactive-zone">
+                <div class="interactive-header">
+                    <h2><i class="fa-solid fa-headset"></i> 醫護 ↔ 病患 雙向即時醫療對話翻譯</h2>
+                    <button id="clearDialogueBtn" class="voice-input-btn" title="清空對話紀錄" style="width: auto; padding: 0 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-trash"></i> 清空對話
+                    </button>
+                </div>
+
+                <!-- Dual Microphone Controls -->
+                <div class="voice-controls-dual">
+                    <div class="voice-control-box doctor-box">
+                        <div class="box-label">👨‍⚕️ 醫護人員發言 (繁體中文)</div>
+                        <button id="doctorDualMicBtn" class="dual-mic-btn doctor-mic-btn" title="按一下開始口述中文說明">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+                        <div class="mic-desc" id="doctorMicDesc">按按鈕口述中文，自動翻譯並朗讀病患母語</div>
+                    </div>
+
+                    <div class="voice-control-box patient-box">
+                        <div class="box-label" id="patientBoxLabel">👤 病患發言 (한국어)</div>
+                        <button id="patientDualMicBtn" class="dual-mic-btn patient-mic-btn" title="按一下聆聽病患口述母語">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+                        <div class="mic-desc" id="patientMicDesc">按按鈕聆聽病患語音，自動翻譯為中文播報</div>
+                    </div>
+                </div>
+
+                <!-- Patient Touch Response Cards -->
+                <div class="patient-touch-responses">
+                    <div class="patient-touch-title">
+                        <i class="fa-solid fa-hand-pointer"></i> 病患免口述快答卡 (無法發聲時直覺觸控點選)
+                    </div>
+                    <div class="touch-cards-grid" id="touchCardsGrid">
+                        <!-- Injected dynamically via app.js -->
+                    </div>
+                </div>
+
+                <!-- Dialogue Stream -->
+                <div id="dialogueHistory" class="dialogue-history">
+                    <div class="chat-msg doctor-msg">
+                        <div class="msg-header">
+                            <span>👨‍⚕️ 醫護人員 (Doctor / CRNA)</span>
+                            <span>系統就緒</span>
+                        </div>
+                        <div class="msg-original">您好，我是麻醉科團隊，準備為您說明。</div>
+                        <div class="msg-translated" id="welcomeDialogueTarget">안녕하세요, 마취과 팀입니다. 설정을 시작하겠습니다.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Custom Translation & Voice Input Panel (RadioTalk Pattern) -->
+        <div class="custom-translate-panel">
+            <div class="custom-translate-title">
+                <i class="fa-solid fa-language"></i> 臨時單向句子語音輸入與翻譯 (輸入繁體中文)
+            </div>
+            <div class="translate-input-wrapper">
+                <input type="text" id="translateInput" class="translate-input" placeholder="例如：請保持輕鬆，我們會保護好您的安全..." autocomplete="off">
+                <button id="micBtn" class="voice-input-btn" title="語音輸入 (繁體中文)">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+                <button id="playBtn" class="play-input-btn" title="翻譯並撥放">
+                    <i class="fa-solid fa-play"></i>
+                </button>
+            </div>
+            
+            <!-- Result Card -->
+            <div id="resultCard" class="translation-result-card">
+                <div id="resultLang" class="result-lang-label">Korean</div>
+                <div id="resultText" class="result-text">...</div>
+            </div>
+        </div>
+
+        <!-- Footer warning disclaimers and credits -->
+        <footer class="app-footer">
+            <p class="disclaimer"><i class="fa-solid fa-triangle-exclamation"></i> 警語：本工具僅供麻醉說明與衛教輔助使用，非醫療診斷最終依據。</p>
+            <p class="credits">Design by 童醫院 AI 麻醉科團隊</p>
+        </footer>
+    </main>
+
+    <!-- Patient Screen Visualizer Overlay (RadioTalk Pattern) -->
+    <div id="patientOverlay" class="patient-screen">
+        <button id="closeOverlay" class="close-overlay" title="關閉畫面 (Esc)">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        
+        <div id="overlayOriginal" class="overlay-original">吸氣，深深呼吸</div>
+        <div id="overlayTarget" class="overlay-target">Breathe in deeply</div>
+        <div id="overlayPronunciation" class="overlay-pronunciation">Deep breath</div>
+        
+        <!-- Visual Circle Animation Indicator -->
+        <div id="breathingVisual" class="breathing-visual">
+            <div class="breath-circle"></div>
+            <i id="overlayIcon" class="breathing-icon fa-solid fa-lungs"></i>
+        </div>
+        <div id="breathingLabel" class="breathing-label">BREATHE IN / 吸氣</div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toastNotification" class="toast">
+        <i class="fa-solid fa-info-circle"></i>
+        <span>提示訊息</span>
+    </div>
+
+    <!-- Hidden global audio elements -->
+    <audio id="globalAudioPlayer" preload="auto" style="display: none;"></audio>
+    <audio id="dummyUnlockPlayer" preload="auto" style="display: none;"></audio>
+
+    <!-- Script imports -->
+    <script src="app.js"></script>
+    <script>
+        // Register PWA service worker for offline loading
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker registered successfully!', reg))
+                    .catch(err => console.error('Service Worker registration failed:', err));
+            });
+        }
+    </script>
+</body>
+</html>
