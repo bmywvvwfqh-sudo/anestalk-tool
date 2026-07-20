@@ -384,7 +384,7 @@ function setupCustomDbHandlers() {
     }
 
     if (saveBtn) {
-        saveBtn.addEventListener('click', () => {
+        saveBtn.addEventListener('click', async () => {
             const input = document.getElementById('dbTwInput');
             const categorySelect = document.getElementById('dbCategorySelect');
             if (!input || !input.value.trim()) {
@@ -396,18 +396,30 @@ function setupCustomDbHandlers() {
             const category = categorySelect ? categorySelect.value : 'general';
             const id = 'custom_' + Date.now();
 
+            showToast('⏳ 正在生成 7 國語言完整譯文並儲存...');
             const translations = {};
             const previewInputs = document.querySelectorAll('#translationsPreviewGrid input');
+
+            const langDefs = [
+                { key: 'korean', code: 'ko-KR' },
+                { key: 'english', code: 'en-US' },
+                { key: 'japanese', code: 'ja-JP' },
+                { key: 'vietnamese', code: 'vi-VN' },
+                { key: 'thai', code: 'th-TH' },
+                { key: 'indonesian', code: 'id-ID' },
+                { key: 'filipino', code: 'fil-PH' }
+            ];
+
             if (previewInputs.length > 0) {
                 previewInputs.forEach(inp => {
                     const lang = inp.dataset.lang;
                     translations[lang] = { text: inp.value, romaji: inp.value };
                 });
             } else {
-                const defaultLangs = ['korean', 'english', 'japanese', 'vietnamese', 'thai', 'indonesian', 'filipino'];
-                defaultLangs.forEach(l => {
-                    translations[l] = { text: twText, romaji: twText };
-                });
+                for (let l of langDefs) {
+                    const trans = await translateAnesthesiaTextAsync(twText, 'zh-TW', l.code);
+                    translations[l.key] = { text: trans, romaji: trans };
+                }
             }
 
             const newCmd = {
@@ -425,7 +437,7 @@ function setupCustomDbHandlers() {
             const previewGrid = document.getElementById('translationsPreviewGrid');
             if (previewGrid) previewGrid.innerHTML = '';
 
-            showToast('🎉 成功儲存自訂句庫！已自動整合至卡片列表');
+            showToast('🎉 成功儲存自訂句庫！已自動整合至全系統語言切換');
         });
     }
 
@@ -480,7 +492,10 @@ function renderCustomDbGrid() {
     }
 
     CUSTOM_CLINICAL_DATABASE.forEach(cmd => {
-        const transObj = cmd.translations[currentLanguage] || cmd.translations['english'] || { text: cmd.title, romaji: '' };
+        const transObj = (cmd.translations && cmd.translations[currentLanguage]) || 
+                         (cmd.translations && cmd.translations['english']) || 
+                         { text: cmd.title, romaji: '' };
+
         const card = document.createElement('div');
         card.className = 'card';
 
@@ -533,11 +548,13 @@ function initVoices() {
     }
 }
 
-// Render All Preset Grids
+// Render All Preset Grids (including Custom DB grid)
 function renderAllGrids() {
     renderSectionGrid('preop', 'preopGrid');
     renderSectionGrid('intraop', 'intraopGrid');
     renderSectionGrid('pacu', 'pacuGrid');
+    renderSectionGrid('general', 'generalGrid');
+    renderCustomDbGrid();
 }
 
 function renderSectionGrid(sectionKey, gridId) {
@@ -548,7 +565,10 @@ function renderSectionGrid(sectionKey, gridId) {
     const commands = PRESET_COMMANDS[sectionKey] || [];
 
     commands.forEach(cmd => {
-        const transObj = cmd.translations[currentLanguage] || cmd.translations['english'];
+        const transObj = (cmd.translations && cmd.translations[currentLanguage]) || 
+                         (cmd.translations && cmd.translations['english']) || 
+                         { text: cmd.title, romaji: '' };
+
         const card = document.createElement('div');
         card.className = 'card';
         card.setAttribute('data-id', cmd.id);
@@ -557,7 +577,7 @@ function renderSectionGrid(sectionKey, gridId) {
             <div class="card-icon"><i class="fa-solid ${cmd.icon}"></i></div>
             <div class="card-title">${cmd.title}</div>
             <div class="card-translation">${transObj.text}</div>
-            <div class="card-romaji">🗣️ ${transObj.romaji}</div>
+            <div class="card-romaji">🗣️ ${transObj.romaji || ''}</div>
             <div class="card-footer">
                 <span>點擊播放對話與彈窗</span>
                 <div class="play-icon"><i class="fa-solid fa-play"></i></div>
@@ -599,14 +619,22 @@ function renderTouchCards() {
 }
 
 // Trigger Instruction Card Click
-function triggerInstructionCard(cmd, transObj, cardEl) {
+async function triggerInstructionCard(cmd, passedTransObj, cardEl) {
     if (cardEl) {
         document.querySelectorAll('.card').forEach(c => c.classList.remove('playing'));
         cardEl.classList.add('playing');
         setTimeout(() => cardEl.classList.remove('playing'), 2500);
     }
 
-    speakText(transObj.text, SPEECH_LANG_CODES[currentLanguage]);
+    const targetLangCode = SPEECH_LANG_CODES[currentLanguage] || 'en-US';
+    let transObj = (cmd.translations && cmd.translations[currentLanguage]) || passedTransObj;
+
+    if (!transObj || !transObj.text || transObj.text === cmd.title) {
+        const fullTrans = await translateAnesthesiaTextAsync(cmd.title, 'zh-TW', targetLangCode);
+        transObj = { text: fullTrans, romaji: fullTrans };
+    }
+
+    speakText(transObj.text, targetLangCode);
     showPatientOverlay(cmd.title, transObj.text, transObj.romaji, cmd.icon, cmd.type);
     appendDialogueMsg('doctor', '👨‍⚕️ 麻醉醫護 (指令卡片)', cmd.title, transObj.text);
 }
