@@ -79,7 +79,10 @@
                 <i class="fa-solid fa-bed-pulse"></i> 恢復室 VAS 痛感
             </button>
             <button class="tab-btn special-tab" data-tab="interactive">
-                <i class="fa-solid fa-comments-dollar"></i> 🗣️ 雙向互動翻譯專區
+                <i class="fa-solid fa-comments"></i> 🗣️ 雙向互動對話
+            </button>
+            <button class="tab-btn db-tab" data-tab="customDb">
+                <i class="fa-solid fa-database"></i> ⚙️ 自訂科室句庫資料庫
             </button>
         </div>
 
@@ -101,6 +104,61 @@
         <section id="pacuSection" class="instruction-section">
             <div id="pacuGrid" class="grid-layout">
                 <!-- Injected dynamically via app.js -->
+            </div>
+        </section>
+
+        <!-- Custom Database Section -->
+        <section id="customDbSection" class="instruction-section">
+            <div class="interactive-zone">
+                <div class="interactive-header">
+                    <h2><i class="fa-solid fa-database"></i> 麻醉科自訂句庫資料庫管理區</h2>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="exportDbBtn" class="voice-input-btn" title="匯出句庫檔 JSON" style="width: auto; padding: 0 0.8rem; font-size: 0.85rem;">
+                            <i class="fa-solid fa-file-export"></i> 匯出句庫
+                        </button>
+                        <button id="importDbBtn" class="voice-input-btn" title="匯入句庫檔 JSON" style="width: auto; padding: 0 0.8rem; font-size: 0.85rem;">
+                            <i class="fa-solid fa-file-import"></i> 匯入句庫
+                        </button>
+                        <input type="file" id="importFileInput" accept=".json" style="display: none;">
+                    </div>
+                </div>
+
+                <!-- Add New Sentence Form -->
+                <div class="custom-db-form">
+                    <div style="font-weight: 700; font-size: 1rem; color: var(--color-navy); margin-bottom: 0.8rem;">
+                        <i class="fa-solid fa-circle-plus"></i> 新增自訂麻醉衛教/溝通語句：
+                    </div>
+                    <div class="form-row">
+                        <input type="text" id="dbTwInput" class="translate-input" placeholder="請輸入中文語句 (例如：請放鬆，醫師正為您準備麻醉...)" autocomplete="off">
+                        <select id="dbCategorySelect" class="translate-input" style="max-width: 160px; cursor: pointer;">
+                            <option value="preop">術前評估</option>
+                            <option value="intraop">擺位誘導</option>
+                            <option value="pacu">恢復室痛感</option>
+                            <option value="general" selected>一般溝通</option>
+                        </select>
+                        <button id="autoFillTransBtn" class="play-input-btn" style="width: auto; padding: 0 1.2rem; font-size: 0.9rem;" title="AI 一鍵翻譯 7 國語言">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> AI 自動翻譯 7 語
+                        </button>
+                        <button id="saveCustomPhraseBtn" class="play-input-btn" style="width: auto; padding: 0 1.2rem; font-size: 0.9rem; background: var(--color-navy);" title="儲存至資料庫">
+                            <i class="fa-solid fa-floppy-disk"></i> 儲存句庫
+                        </button>
+                    </div>
+
+                    <!-- Translations Preview Grid -->
+                    <div id="translationsPreviewGrid" class="trans-preview-grid">
+                        <!-- Preview fields for 7 languages will be rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- Saved Custom Phrases Display Grid -->
+                <div style="margin-top: 1rem;">
+                    <div style="font-weight: 700; font-size: 1rem; color: var(--color-navy); margin-bottom: 0.8rem;">
+                        <i class="fa-solid fa-list-check"></i> 目前已儲存的科室專屬句庫：
+                    </div>
+                    <div id="customDbGrid" class="grid-layout">
+                        <!-- Custom database cards will be rendered dynamically -->
+                    </div>
+                </div>
             </div>
         </section>
 

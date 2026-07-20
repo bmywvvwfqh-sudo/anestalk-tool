@@ -296,7 +296,229 @@ function initApp() {
     renderTouchCards();
     setupEventListeners();
     initSpeechRecognitions();
+    setupCustomDbHandlers();
     checkOfflineStatus();
+}
+
+// === Custom Phrase Database Storage & Management ===
+let CUSTOM_CLINICAL_DATABASE = [];
+
+function loadCustomDatabase() {
+    try {
+        const saved = localStorage.getItem('ANESTALK_CUSTOM_DB');
+        if (saved) {
+            CUSTOM_CLINICAL_DATABASE = JSON.parse(saved);
+            mergeCustomDatabaseToPreset();
+        }
+    } catch (e) {
+        console.error('Failed to load custom database:', e);
+    }
+}
+
+function saveCustomDatabase() {
+    try {
+        localStorage.setItem('ANESTALK_CUSTOM_DB', JSON.stringify(CUSTOM_CLINICAL_DATABASE));
+        mergeCustomDatabaseToPreset();
+        renderAllGrids();
+        renderCustomDbGrid();
+    } catch (e) {
+        console.error('Failed to save custom database:', e);
+    }
+}
+
+function mergeCustomDatabaseToPreset() {
+    CUSTOM_CLINICAL_DATABASE.forEach(cmd => {
+        const cat = cmd.type || 'general';
+        if (!PRESET_COMMANDS[cat]) PRESET_COMMANDS[cat] = [];
+        PRESET_COMMANDS[cat] = PRESET_COMMANDS[cat].filter(c => c.id !== cmd.id);
+        PRESET_COMMANDS[cat].push(cmd);
+    });
+}
+
+function setupCustomDbHandlers() {
+    loadCustomDatabase();
+    renderCustomDbGrid();
+
+    const autoFillBtn = document.getElementById('autoFillTransBtn');
+    const saveBtn = document.getElementById('saveCustomPhraseBtn');
+    const exportBtn = document.getElementById('exportDbBtn');
+    const importBtn = document.getElementById('importDbBtn');
+    const importFileInput = document.getElementById('importFileInput');
+
+    if (autoFillBtn) {
+        autoFillBtn.addEventListener('click', async () => {
+            const input = document.getElementById('dbTwInput');
+            if (!input || !input.value.trim()) {
+                showToast('請先輸入中文語句！');
+                return;
+            }
+            showToast('🪄 AI 正在為您翻譯 7 國語言中...');
+            const twText = input.value.trim();
+            const langs = [
+                { key: 'korean', code: 'ko-KR' },
+                { key: 'english', code: 'en-US' },
+                { key: 'japanese', code: 'ja-JP' },
+                { key: 'vietnamese', code: 'vi-VN' },
+                { key: 'thai', code: 'th-TH' },
+                { key: 'indonesian', code: 'id-ID' },
+                { key: 'filipino', code: 'fil-PH' }
+            ];
+
+            const previewGrid = document.getElementById('translationsPreviewGrid');
+            if (previewGrid) previewGrid.innerHTML = '';
+
+            for (let l of langs) {
+                const trans = await translateAnesthesiaTextAsync(twText, 'zh-TW', l.code);
+                if (previewGrid) {
+                    const box = document.createElement('div');
+                    box.className = 'trans-preview-box';
+                    box.innerHTML = `
+                        <label>${l.key.toUpperCase()} (${l.code})</label>
+                        <input type="text" data-lang="${l.key}" value="${escapeHtml(trans)}">
+                    `;
+                    previewGrid.appendChild(box);
+                }
+            }
+            showToast('✅ 7 國語言 AI 翻譯完成！請確認後點擊「儲存句庫」');
+        });
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const input = document.getElementById('dbTwInput');
+            const categorySelect = document.getElementById('dbCategorySelect');
+            if (!input || !input.value.trim()) {
+                showToast('請先輸入中文語句！');
+                return;
+            }
+
+            const twText = input.value.trim();
+            const category = categorySelect ? categorySelect.value : 'general';
+            const id = 'custom_' + Date.now();
+
+            const translations = {};
+            const previewInputs = document.querySelectorAll('#translationsPreviewGrid input');
+            if (previewInputs.length > 0) {
+                previewInputs.forEach(inp => {
+                    const lang = inp.dataset.lang;
+                    translations[lang] = { text: inp.value, romaji: inp.value };
+                });
+            } else {
+                const defaultLangs = ['korean', 'english', 'japanese', 'vietnamese', 'thai', 'indonesian', 'filipino'];
+                defaultLangs.forEach(l => {
+                    translations[l] = { text: twText, romaji: twText };
+                });
+            }
+
+            const newCmd = {
+                id: id,
+                type: category,
+                icon: 'fa-user-pen',
+                title: twText,
+                translations: translations
+            };
+
+            CUSTOM_CLINICAL_DATABASE.push(newCmd);
+            saveCustomDatabase();
+
+            input.value = '';
+            const previewGrid = document.getElementById('translationsPreviewGrid');
+            if (previewGrid) previewGrid.innerHTML = '';
+
+            showToast('🎉 成功儲存自訂句庫！已自動整合至卡片列表');
+        });
+    }
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(CUSTOM_CLINICAL_DATABASE, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `anestalk_custom_db_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('📥 句庫備份檔 JSON 匯出成功！');
+        });
+    }
+
+    if (importBtn && importFileInput) {
+        importBtn.addEventListener('click', () => importFileInput.click());
+        importFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const imported = JSON.parse(event.target.result);
+                    if (Array.isArray(imported)) {
+                        CUSTOM_CLINICAL_DATABASE = imported;
+                        saveCustomDatabase();
+                        showToast('📤 句庫檔 JSON 匯入成功！已更新至資料庫');
+                    }
+                } catch (err) {
+                    showToast('❌ 匯入失敗，請確認檔案格式為 JSON');
+                }
+            };
+            reader.readAsText(file);
+        });
+    }
+}
+
+function renderCustomDbGrid() {
+    const grid = document.getElementById('customDbGrid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+    if (CUSTOM_CLINICAL_DATABASE.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-muted); font-weight: 600;">
+                目前尚無自訂句庫。您可在上方輸入框輸入中文語句，點擊「AI 自動翻譯 7 語」並進行儲存！
+            </div>
+        `;
+        return;
+    }
+
+    CUSTOM_CLINICAL_DATABASE.forEach(cmd => {
+        const transObj = cmd.translations[currentLanguage] || cmd.translations['english'] || { text: cmd.title, romaji: '' };
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        card.innerHTML = `
+            <div class="card-icon"><i class="fa-solid ${cmd.icon}"></i></div>
+            <div class="card-title">${cmd.title}</div>
+            <div class="card-translation">${transObj.text}</div>
+            <div class="card-footer">
+                <button class="delete-phrase-btn" data-id="${cmd.id}">
+                    <i class="fa-solid fa-trash-can"></i> 刪除
+                </button>
+                <div class="play-icon"><i class="fa-solid fa-play"></i></div>
+            </div>
+        `;
+
+        card.querySelector('.play-icon').addEventListener('click', (e) => {
+            e.stopPropagation();
+            triggerInstructionCard(cmd, transObj, card);
+        });
+
+        card.querySelector('.delete-phrase-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            CUSTOM_CLINICAL_DATABASE = CUSTOM_CLINICAL_DATABASE.filter(c => c.id !== cmd.id);
+            for (let cat in PRESET_COMMANDS) {
+                PRESET_COMMANDS[cat] = PRESET_COMMANDS[cat].filter(c => c.id !== cmd.id);
+            }
+            saveCustomDatabase();
+            showToast('已刪除自訂句語');
+        });
+
+        grid.appendChild(card);
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Initialize SpeechSynthesis Voices
