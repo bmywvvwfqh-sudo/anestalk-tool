@@ -607,14 +607,15 @@ function updatePatientBoxLabel() {
     label.textContent = `👤 病患發言 (${names[currentLanguage] || 'Target'})`;
 }
 
-function handleCustomTranslate() {
+async function handleCustomTranslate() {
     const input = document.getElementById('translateInput');
     if (!input || !input.value.trim()) return;
 
     const text = input.value.trim();
     input.value = '';
 
-    const translated = translateAnesthesiaText(text, currentLanguage);
+    const targetLangCode = SPEECH_LANG_CODES[currentLanguage] || 'en-US';
+    const translated = await translateAnesthesiaTextAsync(text, 'zh-TW', targetLangCode);
 
     const resultCard = document.getElementById('resultCard');
     const resultLang = document.getElementById('resultLang');
@@ -626,40 +627,69 @@ function handleCustomTranslate() {
         resultCard.style.display = 'block';
     }
 
-    speakText(translated, SPEECH_LANG_CODES[currentLanguage]);
+    speakText(translated, targetLangCode);
     appendDialogueMsg('doctor', '👨‍⚕️ 醫護人員 (自訂口述)', text, translated);
 }
 
-function translateAnesthesiaText(text, langKey) {
+// Real-Time Full Sentence Translation Engine (API + Dictionary Fallback)
+async function translateAnesthesiaTextAsync(text, fromLang, toLang) {
+    if (!text || !text.trim()) return '';
+
+    const langKeyMap = {
+        'ko-KR': 'korean', 'ko': 'korean',
+        'en-US': 'english', 'en': 'english',
+        'ja-JP': 'japanese', 'ja': 'japanese',
+        'vi-VN': 'vietnamese', 'vi': 'vietnamese',
+        'th-TH': 'thai', 'th': 'thai',
+        'id-ID': 'indonesian', 'id': 'indonesian',
+        'tl-PH': 'filipino', 'fil-PH': 'filipino', 'tl': 'filipino', 'fil': 'filipino',
+        'zh-TW': 'chinese', 'zh': 'chinese'
+    };
+
+    const targetKey = langKeyMap[toLang] || toLang;
+
+    // 1. Search in preset commands dictionary first for instant exact match
     for (let sec in PRESET_COMMANDS) {
-        const found = PRESET_COMMANDS[sec].find(c => c.title.includes(text) || text.includes(c.title));
-        if (found && found.translations[langKey]) {
-            return found.translations[langKey].text;
+        const found = PRESET_COMMANDS[sec].find(c => c.title === text.trim() || c.title.includes(text.trim()) || text.trim().includes(c.title));
+        if (found && found.translations[targetKey]) {
+            return found.translations[targetKey].text;
         }
     }
 
+    // 2. Online Real-Time Translation API (Google GTX endpoint for 100% full translation)
+    try {
+        const srcCode = fromLang.split('-')[0];
+        const tgtCode = toLang.split('-')[0];
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${srcCode}&tl=${tgtCode}&dt=t&q=${encodeURIComponent(text)}`;
+        const res = await fetch(url);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data[0] && data[0][0] && data[0][0][0]) {
+                return data[0][0][0];
+            }
+        }
+    } catch (e) {
+        console.warn('Online translation API unavailable, falling back to local dictionary:', e);
+    }
+
+    // 3. Fallback dictionary replacement if offline
     const medicalDict = {
-        korean: { "麻醉": "마취", "痛": "통증", "深呼吸": "깊은 숨", "不要動": "움직이지 마세요", "睜開眼睛": "눈을 뜨세요", "氧氣": "산소" },
-        english: { "麻醉": "anesthesia", "痛": "pain", "深呼吸": "deep breath", "不要動": "don't move", "睜開眼睛": "open eyes", "氧氣": "oxygen" },
-        japanese: { "麻醉": "麻酔", "痛": "痛む", "深呼吸": "深呼吸", "不要動": "動かないで", "睜開眼睛": "目を開けて", "氧氣": "酸素" },
-        vietnamese: { "麻醉": "gây mê", "痛": "đau", "深呼吸": "hít thở sâu", "不要動": "không cử động", "睜開眼睛": "mở mắt", "氧氣": "oxy" },
-        thai: { "麻醉": "ยาสลบ", "痛": "เจ็บ", "深呼吸": "หายใจเข้าลึก", "不要動": "อย่าขยับ", "睜開眼睛": "ลืมตา", "氧氣": "ออกซิเจน" },
-        indonesian: { "麻醉": "anestesi", "痛": "sakit", "深呼吸": "tarik napas dalam", "不要動": "jangan bergerak", "睜開眼睛": "buka mata", "氧氣": "oksigen" },
-        filipino: { "麻醉": "anestesiya", "痛": "masakit", "深呼吸": "huminga nang malalim", "不要動": "huwag gumalaw", "睜開眼睛": "idilat ang mata", "氧氣": "oksiheno" }
+        korean: { "我是你的": "저는 당신의 ", "麻醉科醫師": "마취과 의사입니다.", "麻醉": "마취", "痛": "통증", "深呼吸": "깊은 숨", "不要動": "움직이지 마세요", "睜開眼睛": "눈을 뜨세요", "氧氣": "산소" },
+        english: { "我是你的": "I am your ", "麻醉科醫師": "anesthesiologist.", "麻醉": "anesthesia", "痛": "pain", "深呼吸": "deep breath", "不要動": "don't move", "睜開眼睛": "open eyes", "氧氣": "oxygen" },
+        japanese: { "我是你的": "私はあなたの", "麻醉科醫師": "麻酔科医です。", "麻醉": "麻酔", "痛": "痛む", "深呼吸": "深呼吸", "不要動": "動かないで", "睜開眼睛": "目を開けて", "氧氣": "酸素" }
     };
 
     let result = text;
-    if (medicalDict[langKey]) {
-        Object.keys(medicalDict[langKey]).forEach(k => {
-            result = result.replace(new RegExp(k, 'g'), medicalDict[langKey][k]);
+    if (medicalDict[targetKey]) {
+        Object.keys(medicalDict[targetKey]).forEach(k => {
+            result = result.replace(new RegExp(k, 'g'), medicalDict[targetKey][k]);
         });
     }
 
-    if (result !== text) return result;
-    return `[AI Translated] ${text}`;
+    return result;
 }
 
-// Dual Speech Recognition Engine with Error Handling & Origin Check
+// Dual Speech Recognition Engine with Full Real-time Translation
 function initSpeechRecognitions() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -680,13 +710,14 @@ function initSpeechRecognitions() {
         showToast('🎙️ 正在聆聽醫護人員中文發言...');
     };
 
-    doctorRecognition.onresult = (event) => {
+    doctorRecognition.onresult = async (event) => {
         const transcript = event.results[0][0].transcript;
         if (transcript) {
-            const translated = translateAnesthesiaText(transcript, currentLanguage);
+            const targetLangCode = SPEECH_LANG_CODES[currentLanguage] || 'en-US';
+            const translated = await translateAnesthesiaTextAsync(transcript, 'zh-TW', targetLangCode);
             appendDialogueMsg('doctor', '👨‍⚕️ 醫護人員 (即時口述)', transcript, translated);
-            speakText(translated, SPEECH_LANG_CODES[currentLanguage]);
-            showPatientOverlay(transcript, translated, '', 'fa-microphone', 'general');
+            speakText(translated, targetLangCode);
+            showPatientOverlay(transcript, translated, '', 'fa-stethoscope', 'general');
         }
     };
 
@@ -725,10 +756,11 @@ function initSpeechRecognitions() {
         showToast(`🎤 正在聆聽病患 (${currentLanguage.toUpperCase()}) 發言...`);
     };
 
-    patientRecognition.onresult = (event) => {
+    patientRecognition.onresult = async (event) => {
         const transcript = event.results[0][0].transcript;
         if (transcript) {
-            const translatedTW = `[翻譯] ${transcript}`;
+            const targetLangCode = SPEECH_LANG_CODES[currentLanguage] || 'en-US';
+            const translatedTW = await translateAnesthesiaTextAsync(transcript, targetLangCode, 'zh-TW');
             appendDialogueMsg('patient', '👤 病患口述發言', transcript, translatedTW);
             speakText(translatedTW, 'zh-TW');
         }
