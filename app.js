@@ -697,54 +697,57 @@ function hidePatientOverlay() {
     if (overlay) overlay.classList.remove('active');
 }
 
-// Strict Female Voice Selection & Pitch Enforcement Engine (Handles Hyphenated Names & Anti-Male Exclusion)
+// Strict Female Voice Selection & Pitch Enforcement Engine (Anti-Male Exclusion + Hardcoded Female Priorities)
 const KNOWN_FEMALE_VOICES = {
-    zh: ['mei-jia', 'ting-ting', 'yating', 'hsiaochen', 'meijia', 'xiaoxiao', 'hanhan', 'sin-ji', 'google 國語', 'microsoft hsiaochen', 'microsoft xiaoxiao', 'hiuga', 'hwayu'],
-    ko: ['yuna', 'sun-hi', 'sunhi', 'heami', 'google 한국어', 'microsoft sunhi', 'microsoft heami'],
-    en: ['samantha', 'jenny', 'ava', 'karen', 'victoria', 'aria', 'zira', 'google us english', 'google uk english female', 'microsoft jenny', 'microsoft aria'],
-    ja: ['kyoko', 'nanami', 'mizuki', 'haruka', 'google 日本語', 'microsoft nanami', 'microsoft haruka'],
-    vi: ['linh', 'hoaimy', 'hoai-my', 'google tiếng việt', 'microsoft hoaimy'],
-    th: ['kanya', 'premwadee', 'google ภาษาไทย', 'microsoft premwadee'],
-    id: ['damayanti', 'gadis', 'google bahasa indonesia', 'microsoft gadis'],
-    tl: ['rosa', 'blessica', 'google filipino', 'microsoft blessica'],
-    fil: ['rosa', 'blessica', 'google filipino', 'microsoft blessica']
+    zh: ['meijia', 'tingting', 'sinji', 'google 國語', 'google 普通話', 'google 普通话', 'xiaoxiao', 'hsiaochen', 'yating', 'hanhan', 'hiuga', 'hwayu'],
+    ko: ['yuna', 'sunhi', 'heami', 'google 한국어', 'microsoft sunhi', 'microsoft heami'],
+    en: ['samantha', 'karen', 'kathy', 'moira', 'victoria', 'tessa', 'ava', 'jenny', 'aria', 'zira', 'google us english', 'google uk english female'],
+    ja: ['kyoko', 'nanami', 'mizuki', 'haruka', 'google 日本語'],
+    vi: ['linh', 'hoaimy', 'google tiếng việt'],
+    th: ['kanya', 'premwadee', 'google ภาษาไทย'],
+    id: ['damayanti', 'gadis', 'google bahasa indonesia'],
+    tl: ['rosa', 'blessica', 'google filipino'],
+    fil: ['rosa', 'blessica', 'google filipino']
 };
 
 const EXPLICIT_MALE_KEYWORDS = [
-    'male', 'man', 'boy', 'david', 'mark', 'george', 'james', 'paul', 'richard', 
-    'otoya', 'keita', 'shinji', 'hattori', 'hwan', 'min', 'giang', 'alva', 'stefan', 
-    'daniel', 'ichiro', 'taras', 'alex', 'fred', 'bruce', 'ralph'
+    'eddy', 'reed', 'rocko', 'flo', 'grandpa', 'grandma', 'albert', 'daniel', 'fred', 
+    'junior', 'ralph', 'wobble', 'zarvox', 'david', 'mark', 'george', 'james', 'paul', 
+    'richard', 'otoya', 'keita', 'shinji', 'hattori', 'hwan', 'min', 'giang', 'alva', 
+    'stefan', 'ichiro', 'taras', 'alex', 'bruce', 'male', 'man', 'boy'
 ];
 
 function getStrictFemaleVoice(langCode) {
     if (!synth) return null;
-    const allVoices = synth.getVoices();
+    let allVoices = synth.getVoices();
     if (!allVoices || allVoices.length === 0) return null;
 
     const prefix = langCode.toLowerCase().substring(0, 2);
 
-    // 1. Filter voices for target language
-    const langVoices = allVoices.filter(v => 
-        v.lang.toLowerCase() === langCode.toLowerCase() ||
-        v.lang.toLowerCase().replace('_', '-').startsWith(prefix)
-    );
-
-    if (langVoices.length === 0) return null;
-
-    // 2. Reject explicit male voices first
-    const nonMaleVoices = langVoices.filter(v => {
+    // 1. Filter out all explicit male & novelty voices first
+    const nonMaleVoices = allVoices.filter(v => {
         const n = v.name.toLowerCase();
         if (n.includes('female')) return true;
         return !EXPLICIT_MALE_KEYWORDS.some(m => n.includes(m));
     });
 
-    const candidatePool = nonMaleVoices.length > 0 ? nonMaleVoices : langVoices;
+    const candidatePool = nonMaleVoices.length > 0 ? nonMaleVoices : allVoices;
 
-    // 3. Match against known female voice names (stripping punctuation for 100% match)
+    // 2. Priority match against known female voices for target language
     const preferredNames = KNOWN_FEMALE_VOICES[prefix] || [];
     for (let pName of preferredNames) {
         const targetP = pName.toLowerCase().replace(/[^a-z0-9]/g, '');
         const match = candidatePool.find(v => {
+            const n = v.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return n.includes(targetP);
+        });
+        if (match) return match;
+    }
+
+    // 3. Fallback: Search all voices for preferred female names if language filter missed
+    for (let pName of preferredNames) {
+        const targetP = pName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const match = allVoices.find(v => {
             const n = v.name.toLowerCase().replace(/[^a-z0-9]/g, '');
             return n.includes(targetP);
         });
@@ -762,54 +765,38 @@ function getStrictFemaleVoice(langCode) {
     return candidatePool[0];
 }
 
-let activeAudio = null;
-
 function speakText(text, langCode) {
-    if (!text || !text.trim()) return;
+    if (!text || !text.trim() || !synth) return;
 
     const cleanText = text.trim();
 
-    // Stop any currently playing audio stream or speech
-    if (activeAudio) {
-        activeAudio.pause();
-        activeAudio.currentTime = 0;
+    if (synth.paused) {
+        synth.resume();
     }
-    if (synth) {
-        synth.cancel();
-    }
+    synth.cancel();
 
-    const shortLang = (langCode || 'en-US').split('-')[0].toLowerCase();
-    const targetLangParam = langCode && langCode.toLowerCase().includes('zh') ? 'zh-TW' : shortLang;
+    setTimeout(() => {
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.lang = langCode || 'en-US';
+        utterance.rate = 0.92; // Clear articulation speed
+        utterance.pitch = 1.05; // Gentle female pitch boost
 
-    // Primary Engine: High-Definition Studio Female Voice Audio Stream
-    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${encodeURIComponent(targetLangParam)}&client=tw-ob&q=${encodeURIComponent(cleanText)}`;
-    
-    const audio = new Audio(audioUrl);
-    activeAudio = audio;
-    audio.playbackRate = 0.92; // Slightly relaxed for ultra-clear medical articulation
+        // Force Strict Female Voice Selection
+        const matchedVoice = getStrictFemaleVoice(langCode);
+        if (matchedVoice) {
+            utterance.voice = matchedVoice;
+            showToast(`🔊 正在使用清晰女聲: ${matchedVoice.name}`);
+            console.log(`🔊 [AnesTalk TTS] Female Voice assigned (${langCode}): ${matchedVoice.name}`);
+        } else {
+            showToast(`🔊 正在播報語音 (${langCode.toUpperCase()})`);
+        }
 
-    showToast(`🔊 正在播放清晰真人女聲 (${targetLangParam.toUpperCase()})`);
+        utterance.onerror = (e) => {
+            console.error('SpeechSynthesis error:', e);
+        };
 
-    audio.play().then(() => {
-        console.log(`🔊 [AnesTalk HD Voice] Playing studio female voice for: ${cleanText}`);
-    }).catch(err => {
-        console.warn('Online HD Audio stream failed, switching to local WebSpeech engine:', err);
-        playWebSpeechFallback(cleanText, langCode);
-    });
-}
-
-function playWebSpeechFallback(text, langCode) {
-    if (!synth) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = langCode || 'en-US';
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-
-    const matchedVoice = getStrictFemaleVoice(langCode);
-    if (matchedVoice) {
-        utterance.voice = matchedVoice;
-    }
-    synth.speak(utterance);
+        synth.speak(utterance);
+    }, 50);
 }
 
 // Append Dialogue Message Bubble
