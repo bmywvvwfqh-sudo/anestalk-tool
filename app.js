@@ -766,37 +766,38 @@ function getStrictFemaleVoice(langCode) {
 }
 
 function speakText(text, langCode) {
-    if (!text || !text.trim() || !synth) return;
+    if (!text || !text.trim()) return;
+    if (!synth) synth = window.speechSynthesis;
+    if (!synth) return;
 
     const cleanText = text.trim();
 
+    // Cancel any ongoing speech synchronously
+    synth.cancel();
     if (synth.paused) {
         synth.resume();
     }
-    synth.cancel();
 
-    setTimeout(() => {
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.lang = langCode || 'en-US';
-        utterance.rate = 0.92; // Clear articulation speed
-        utterance.pitch = 1.05; // Gentle female pitch boost
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = langCode || 'en-US';
+    utterance.rate = 0.92; // Clear articulation speed
+    utterance.pitch = 1.05; // Gentle female pitch boost
 
-        // Force Strict Female Voice Selection
-        const matchedVoice = getStrictFemaleVoice(langCode);
-        if (matchedVoice) {
-            utterance.voice = matchedVoice;
-            showToast(`🔊 正在使用清晰女聲: ${matchedVoice.name}`);
-            console.log(`🔊 [AnesTalk TTS] Female Voice assigned (${langCode}): ${matchedVoice.name}`);
-        } else {
-            showToast(`🔊 正在播報語音 (${langCode.toUpperCase()})`);
-        }
+    // Force Strict Female Voice Selection
+    const matchedVoice = getStrictFemaleVoice(langCode);
+    if (matchedVoice) {
+        utterance.voice = matchedVoice;
+        showToast(`🔊 正在播報女聲: ${matchedVoice.name}`);
+        console.log(`🔊 [AnesTalk TTS] Female Voice assigned (${langCode}): ${matchedVoice.name}`);
+    } else {
+        showToast(`🔊 正在播報語音 (${langCode.toUpperCase()})`);
+    }
 
-        utterance.onerror = (e) => {
-            console.error('SpeechSynthesis error:', e);
-        };
+    utterance.onerror = (e) => {
+        console.error('SpeechSynthesis error:', e);
+    };
 
-        synth.speak(utterance);
-    }, 50);
+    synth.speak(utterance);
 }
 
 // Append Dialogue Message Bubble
