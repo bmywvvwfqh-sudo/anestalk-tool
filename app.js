@@ -786,6 +786,7 @@ function speakText(text, langCode) {
 
     const cleanText = text.trim();
 
+    // Cancel any currently playing speech
     if (speakTimeout) clearTimeout(speakTimeout);
     try {
         synth.cancel();
@@ -793,55 +794,35 @@ function speakText(text, langCode) {
     } catch(e) {}
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = langCode || 'en-US';
-    utterance.rate = 0.92;
-    utterance.pitch = 1.1; // Gentle feminine pitch boost
+    utterance.lang = langCode || 'zh-TW';
+    utterance.rate = 0.88;
+    utterance.pitch = 1.2;  // Feminine pitch - no specific voice object needed
+    utterance.volume = 1.0;
 
-    const matchedVoice = getStrictFemaleVoice(langCode);
-    let voiceAssigned = false;
+    // NOTE: We intentionally do NOT set utterance.voice
+    // Setting a specific voice object (e.g. Meijia) that is not fully installed
+    // causes WebSpeech API to silently fail with no error event.
+    // Let the browser pick the best available voice for the given lang+pitch.
 
-    if (matchedVoice) {
-        utterance.voice = matchedVoice;
-        voiceAssigned = true;
-        showToast(`🔊 正在播報女聲: ${matchedVoice.name}`);
-        console.log(`🔊 [AnesTalk TTS] Female Voice assigned (${langCode}): ${matchedVoice.name}`);
-    } else {
-        showToast(`🔊 正在播報語音 (${(langCode||'').toUpperCase()})`);
-    }
-
-    let started = false;
     utterance.onstart = () => {
-        started = true;
-        console.log('🔊 Speech started successfully!');
+        console.log(`🔊 Speech started: [${langCode}] "${cleanText.substring(0, 20)}..."`);
     };
 
     utterance.onerror = (e) => {
-        console.error('Speech error:', e);
-        if (voiceAssigned) {
-            console.warn('Retrying speech fallback without explicit voice object...');
-            const fallbackUtterance = new SpeechSynthesisUtterance(cleanText);
-            fallbackUtterance.lang = langCode || 'en-US';
-            fallbackUtterance.rate = 0.92;
-            fallbackUtterance.pitch = 1.18; // Feminine pitch modulation fallback
-            synth.speak(fallbackUtterance);
+        console.error('Speech error:', e.error, e);
+        // If speech failed, retry once without any constraints
+        if (e.error !== 'interrupted') {
+            try {
+                const retry = new SpeechSynthesisUtterance(cleanText);
+                retry.lang = langCode || 'zh-TW';
+                retry.volume = 1.0;
+                synth.speak(retry);
+            } catch(err) {}
         }
     };
 
+    showToast(`🔊 播報中...`);
     synth.speak(utterance);
-
-    // Safety check: If speech did not start after 500ms (e.g. OS voice not installed), retry WITHOUT cancelling
-    speakTimeout = setTimeout(() => {
-        if (!started && voiceAssigned) {
-            console.warn('Speech did not start within 500ms. Retrying with system default voice...');
-            // NOTE: Do NOT call synth.cancel() here - it would cancel the very utterance we just started!
-            // Instead create a fresh utterance on top.
-            const fallbackUtterance = new SpeechSynthesisUtterance(cleanText);
-            fallbackUtterance.lang = langCode || 'en-US';
-            fallbackUtterance.rate = 0.92;
-            fallbackUtterance.pitch = 1.18; // Feminine pitch modulation fallback
-            synth.speak(fallbackUtterance);
-        }
-    }, 500);
 }
 
 // Append Dialogue Message Bubble

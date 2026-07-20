@@ -1,4 +1,4 @@
-const CACHE_NAME = 'anestalk-v6.0';
+const CACHE_NAME = 'anestalk-v7.0';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
