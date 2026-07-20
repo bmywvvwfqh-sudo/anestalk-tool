@@ -645,8 +645,8 @@ async function triggerInstructionCard(cmd, passedTransObj, cardEl) {
         transObj = { text: fullTrans, romaji: fullTrans };
     }
 
-    // Always speak in Chinese (zh-TW) female voice for medical staff
-    speakText(cmd.title, 'zh-TW');
+    // Speak translated text in patient's native language
+    speakText(transObj.text, targetLangCode);
     showPatientOverlay(cmd.title, transObj.text, transObj.romaji, cmd.icon, cmd.type);
     appendDialogueMsg('doctor', '👨‍⚕️ 麻醉醫護 (指令卡片)', cmd.title, transObj.text);
 }
@@ -955,8 +955,8 @@ async function handleCustomTranslate() {
         resultCard.style.display = 'block';
     }
 
-    // Always speak in Chinese (zh-TW) female voice for medical staff
-    speakText(text, 'zh-TW');
+    // Speak translated text in patient's native language
+    speakText(translated, targetLangCode);
     appendDialogueMsg('doctor', '👨‍⚕️ 醫護人員 (自訂口述)', text, translated);
 }
 
@@ -1045,8 +1045,8 @@ function initSpeechRecognitions() {
             const targetLangCode = SPEECH_LANG_CODES[currentLanguage] || 'en-US';
             const translated = await translateAnesthesiaTextAsync(transcript, 'zh-TW', targetLangCode);
             appendDialogueMsg('doctor', '👨‍⚕️ 醫護人員 (即時口述)', transcript, translated);
-            // Always speak Chinese (zh-TW) female voice for medical staff
-            speakText(transcript, 'zh-TW');
+            // Speak translated text in patient's native language
+            speakText(translated, targetLangCode);
             showPatientOverlay(transcript, translated, '', 'fa-stethoscope', 'general');
         }
     };
