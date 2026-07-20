@@ -629,6 +629,18 @@ async function triggerInstructionCard(cmd, passedTransObj, cardEl) {
     const targetLangCode = SPEECH_LANG_CODES[currentLanguage] || 'en-US';
     let transObj = (cmd.translations && cmd.translations[currentLanguage]) || passedTransObj;
 
+    // CRITICAL: Unlock audio context IMMEDIATELY on user gesture BEFORE any async work.
+    // Browsers (Chrome/Safari) revoke the user-gesture speech permission after an await.
+    // So we pre-unlock TTS right now with a silent utterance, then speak for real after async.
+    try {
+        if (!synth) synth = window.speechSynthesis;
+        synth.cancel();
+        const unlockUtterance = new SpeechSynthesisUtterance(' ');
+        unlockUtterance.volume = 0;
+        unlockUtterance.rate = 10; // finish instantly
+        synth.speak(unlockUtterance);
+    } catch(e) {}
+
     if (!transObj || !transObj.text || transObj.text === cmd.title) {
         const fullTrans = await translateAnesthesiaTextAsync(cmd.title, 'zh-TW', targetLangCode);
         transObj = { text: fullTrans, romaji: fullTrans };
@@ -817,18 +829,19 @@ function speakText(text, langCode) {
 
     synth.speak(utterance);
 
-    // Safety check: If speech did not start after 400ms (e.g. uninstalled OS voice reference stall), retry with system fallback
+    // Safety check: If speech did not start after 500ms (e.g. OS voice not installed), retry WITHOUT cancelling
     speakTimeout = setTimeout(() => {
         if (!started && voiceAssigned) {
-            console.warn('Speech did not start within 400ms. Retrying fallback...');
-            try { synth.cancel(); } catch(e) {}
+            console.warn('Speech did not start within 500ms. Retrying with system default voice...');
+            // NOTE: Do NOT call synth.cancel() here - it would cancel the very utterance we just started!
+            // Instead create a fresh utterance on top.
             const fallbackUtterance = new SpeechSynthesisUtterance(cleanText);
             fallbackUtterance.lang = langCode || 'en-US';
             fallbackUtterance.rate = 0.92;
             fallbackUtterance.pitch = 1.18; // Feminine pitch modulation fallback
             synth.speak(fallbackUtterance);
         }
-    }, 400);
+    }, 500);
 }
 
 // Append Dialogue Message Bubble
