@@ -762,42 +762,54 @@ function getStrictFemaleVoice(langCode) {
     return candidatePool[0];
 }
 
+let activeAudio = null;
+
 function speakText(text, langCode) {
-    if (!synth) {
-        showToast('⚠️ 您的瀏覽器不支援語音發音。');
-        return;
+    if (!text || !text.trim()) return;
+
+    const cleanText = text.trim();
+
+    // Stop any currently playing audio stream or speech
+    if (activeAudio) {
+        activeAudio.pause();
+        activeAudio.currentTime = 0;
+    }
+    if (synth) {
+        synth.cancel();
     }
 
-    if (synth.paused) {
-        synth.resume();
+    const shortLang = (langCode || 'en-US').split('-')[0].toLowerCase();
+    const targetLangParam = langCode && langCode.toLowerCase().includes('zh') ? 'zh-TW' : shortLang;
+
+    // Primary Engine: High-Definition Studio Female Voice Audio Stream
+    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${encodeURIComponent(targetLangParam)}&client=tw-ob&q=${encodeURIComponent(cleanText)}`;
+    
+    const audio = new Audio(audioUrl);
+    activeAudio = audio;
+    audio.playbackRate = 0.92; // Slightly relaxed for ultra-clear medical articulation
+
+    showToast(`🔊 正在播放清晰真人女聲 (${targetLangParam.toUpperCase()})`);
+
+    audio.play().then(() => {
+        console.log(`🔊 [AnesTalk HD Voice] Playing studio female voice for: ${cleanText}`);
+    }).catch(err => {
+        console.warn('Online HD Audio stream failed, switching to local WebSpeech engine:', err);
+        playWebSpeechFallback(cleanText, langCode);
+    });
+}
+
+function playWebSpeechFallback(text, langCode) {
+    if (!synth) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = langCode || 'en-US';
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+
+    const matchedVoice = getStrictFemaleVoice(langCode);
+    if (matchedVoice) {
+        utterance.voice = matchedVoice;
     }
-    synth.cancel();
-
-    // Dynamically retrieve latest system voices
-    availableVoices = synth.getVoices();
-
-    setTimeout(() => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = langCode || 'en-US';
-        utterance.rate = 0.95; // Natural clear speed (eliminates muddled audio)
-        utterance.pitch = 1.0; // Standard natural pitch (eliminates distortion artifacts)
-
-        // Force Strict Female Voice Matching
-        const matchedVoice = getStrictFemaleVoice(langCode);
-        if (matchedVoice) {
-            utterance.voice = matchedVoice;
-            showToast(`🔊 語音女聲: ${matchedVoice.name}`);
-            console.log(`🔊 [AnesTalk TTS] Using Female Voice (${langCode}): ${matchedVoice.name}`);
-        } else {
-            console.warn(`⚠️ [AnesTalk TTS] No matched female voice for ${langCode}`);
-        }
-
-        utterance.onerror = (e) => {
-            console.error('SpeechSynthesis error:', e);
-        };
-
-        synth.speak(utterance);
-    }, 50);
+    synth.speak(utterance);
 }
 
 // Append Dialogue Message Bubble
